@@ -170,12 +170,6 @@ router.get(
     const { entityType } = req.params;
     const userPermissions = req.permissions;
 
-    if (!userPermissions) {
-      return res.status(403).json({
-        error: "Access denied. User does not have permission for this entity.",
-      });
-    }
-
     // Check if the requested entity has corresponding permissions
     if (!userPermissions) {
       return res.status(403).json({
@@ -211,31 +205,6 @@ router.get(
       res.status(500).json({ error: "Internal server error." });
     }
   }
-  // else if (method === 'DELETE') {
-  //     // Check if the user has delete permission for all columns
-  //     const canDeleteAllColumns = userPermission.columns.every((col: any) => col.delete_permission);
-
-  //     if (!canDeleteAllColumns) {
-  //         return res.status(403).json({ error: 'Access denied. User does not have delete permission for all columns.' });
-  //     }
-
-  //     const deleteQuery = `DELETE FROM ${entity} WHERE id = ?`;
-
-  //     try {
-  //         const [result] = await pool.query(deleteQuery, [id]);
-  //         if (result.affectedRows > 0) {
-  //             res.json({ message: 'Record deleted successfully.' });
-  //         } else {
-  //             res.status(404).json({ error: 'Record not found.' });
-  //         }
-  //     } catch (error) {
-  //         console.error(error);
-  //         res.status(500).json({ error: 'Internal server error.' });
-  //     }
-  // } else if (method === 'POST' || method === 'PUT') {
-  // } else {
-  //     res.status(405).json({ error: 'Method not allowed.' });
-  // }
 );
 
 // // Generic route to retrieve a record by ID
@@ -346,30 +315,49 @@ router.put(
   }
 );
 
-// // Generic route to delete a record by ID
-// router.delete(
-//   "/:entityType/:entityId",
-//   getAuth,
-//   checkPermission,
-//   async (req: Request, res: Response) => {
-//     const { entityType, entityId } = req.params;
+// Generic route to delete a record by ID
+router.delete(
+  "/:entityType/:entityId",
+  getAuth,
+  checkPermission,
+  async (req: Request, res: Response) => {
+    const { entityType, entityId } = req.params;
+    const userPermissions = req.permissions;
 
-//     // Implement logic to delete a record by ID from the specified table (entityType)
-//     try {
-//       // Example query to delete a record from the specified table
-//       await connection.query(`DELETE FROM ${entityType} WHERE id = ?`, [
-//         entityId,
-//       ]);
+    // Check if the requested entity has corresponding permissions
+    if (!userPermissions) {
+      return res.status(403).json({
+        error: "Access denied. User does not have permission for this entity.",
+      });
+    }
+    // Check if the user has delete permission for all columns
+    const canDeleteAllColumns = userPermissions.every(
+      (col: any) => col.delete_permission
+    );
 
-//       return res
-//         .status(200)
-//         .json({ message: `${entityType} deleted successfully` });
-//     } catch (error) {
-//       console.error(`Error deleting ${entityType}:`, error);
-//       return res.status(500).json({ message: "Internal server error" });
-//     }
-//   }
-// );
+    if (!canDeleteAllColumns) {
+      return res.status(403).json({
+        error:
+          "Access denied. User does not have delete permission for all columns.",
+      });
+    }
+
+    const deleteQuery = `DELETE FROM ${entityType} WHERE id = ?`;
+
+    try {
+      // no result for DELETE query
+      await connection.query(deleteQuery, {
+        replacements: [entityId],
+        type: QueryTypes.DELETE,
+      });
+
+      res.json({ message: "Record deleted successfully." });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Internal server error." });
+    }
+  }
+);
 
 const app = express();
 app.use(express.json());
